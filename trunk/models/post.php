@@ -27,7 +27,8 @@ class JSON_API_Post {
   var $comment_status;  // String ("open" or "closed")
   var $thumbnail;       // String
   var $custom_fields;   // Object (included by using custom_fields query var)
-  
+  var $menu_order;      // Integer
+
   function JSON_API_Post($wp_post = null) {
     if (!empty($wp_post)) {
       $this->import_wp_object($wp_post);
@@ -74,7 +75,11 @@ class JSON_API_Post {
     if (!empty($values['id'])) {
       $wp_values['ID'] = $values['id'];
     }
-    
+
+    if (!empty($values['menu_order'])) {
+      $wp_values['menu_order'] = $values['menu_order'];
+    }
+
     if (!empty($values['type'])) {
       $wp_values['post_type'] = $values['type'];
     }
@@ -150,6 +155,7 @@ class JSON_API_Post {
     global $json_api, $post;
     $date_format = $json_api->query->date_format;
     $this->id = (int) $wp_post->ID;
+    $this->menu_order = (int) $wp_post->menu_order;
     setup_postdata($wp_post);
     $this->set_value('type', $wp_post->post_type);
     $this->set_value('slug', $wp_post->post_name);
