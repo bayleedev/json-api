@@ -8,6 +8,7 @@ class JSON_API_Post {
   var $id;              // Integer
   var $type;            // String
   var $slug;            // String
+  var $absolute_slug;   // String
   var $url;             // String
   var $status;          // String ("draft", "published", or "pending")
   var $title;           // String
@@ -19,20 +20,37 @@ class JSON_API_Post {
   var $categories;      // Array of objects
   var $tags;            // Array of objects
   var $author;          // Object
+  var $parent;          // Int
   var $comments;        // Array of objects
   var $attachments;     // Array of objects
   var $comment_count;   // Integer
   var $comment_status;  // String ("open" or "closed")
   var $thumbnail;       // String
   var $custom_fields;   // Object (included by using custom_fields query var)
-  
+  var $menu_order;      // Integer
+
   function JSON_API_Post($wp_post = null) {
     if (!empty($wp_post)) {
       $this->import_wp_object($wp_post);
     }
     do_action("json_api_{$this->type}_constructor", $this);
   }
-  
+
+  public function absolute_slug() {
+    if($this->type != 'page' || $this->parent == 0) {
+      return $this->slug;
+    } else {
+      $parent = get_page($this->parent);
+      $slug = $this->slug;
+      do {
+        $slug = $parent->post_name . '/' . $slug;
+        $parent = get_page($parent->post_password);
+      } while ($parent->post_password != 0);
+      return $slug;
+    }
+    return null;
+  }
+
   function create($values = null) {
     unset($values['id']);
     if (empty($values) || empty($values['title'])) {
@@ -57,7 +75,11 @@ class JSON_API_Post {
     if (!empty($values['id'])) {
       $wp_values['ID'] = $values['id'];
     }
-    
+
+    if (!empty($values['menu_order'])) {
+      $wp_values['menu_order'] = $values['menu_order'];
+    }
+
     if (!empty($values['type'])) {
       $wp_values['post_type'] = $values['type'];
     }
@@ -78,7 +100,11 @@ class JSON_API_Post {
       $author = $json_api->introspector->get_author_by_login($values['author']);
       $wp_values['post_author'] = $author->id;
     }
-    
+
+    if (!empty($values['parent'])) {
+      $wp_values['post_parent'] = $values['parent'];
+    }
+
     if (isset($values['categories'])) {
       $categories = explode(',', $values['categories']);
       foreach ($categories as $category_slug) {
@@ -129,6 +155,7 @@ class JSON_API_Post {
     global $json_api, $post;
     $date_format = $json_api->query->date_format;
     $this->id = (int) $wp_post->ID;
+    $this->menu_order = (int) $wp_post->menu_order;
     setup_postdata($wp_post);
     $this->set_value('type', $wp_post->post_type);
     $this->set_value('slug', $wp_post->post_name);
@@ -136,6 +163,7 @@ class JSON_API_Post {
     $this->set_value('status', $wp_post->post_status);
     $this->set_value('title', get_the_title($this->id));
     $this->set_value('title_plain', strip_tags(@$this->title));
+    $this->set_value('parent', (int)$wp_post->post_parent);
     $this->set_content_value();
     $this->set_value('excerpt', apply_filters('the_excerpt', get_the_excerpt()));
     $this->set_value('date', get_the_time($date_format));
@@ -150,6 +178,7 @@ class JSON_API_Post {
     $this->set_thumbnail_value();
     $this->set_custom_fields_value();
     $this->set_custom_taxonomies($wp_post->post_type);
+    $this->set_value('absolute_slug', $this->absolute_slug());
     do_action("json_api_import_wp_post", $this, $wp_post);
   }
   
@@ -257,20 +286,14 @@ class JSON_API_Post {
   function set_custom_fields_value() {
     global $json_api;
     if ($json_api->include_value('custom_fields')) {
-      $wp_custom_fields = get_post_custom($this->id);
-      $this->custom_fields = new stdClass();
-      if ($json_api->query->custom_fields) {
-        $keys = explode(',', $json_api->query->custom_fields);
-      }
-      foreach ($wp_custom_fields as $key => $value) {
-        if ($json_api->query->custom_fields) {
-          if (in_array($key, $keys)) {
-            $this->custom_fields->$key = $wp_custom_fields[$key];
-          }
-        } else if (substr($key, 0, 1) != '_') {
-          $this->custom_fields->$key = $wp_custom_fields[$key];
+      $fields = get_post_custom($this->_id);
+      foreach ($fields as $key => &$value) {
+        $value = array_unique($value);
+        if (is_array($value) && count($value) === 1) {
+          $value = $value[0];
         }
       }
+      $this->custom_fields = (object) $fields;
     } else {
       unset($this->custom_fields);
     }
