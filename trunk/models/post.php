@@ -20,6 +20,7 @@ class JSON_API_Post {
   var $categories;      // Array of objects
   var $tags;            // Array of objects
   var $author;          // Object
+  var $parent;          // Int
   var $comments;        // Array of objects
   var $attachments;     // Array of objects
   var $comment_count;   // Integer
@@ -94,7 +95,11 @@ class JSON_API_Post {
       $author = $json_api->introspector->get_author_by_login($values['author']);
       $wp_values['post_author'] = $author->id;
     }
-    
+
+    if (!empty($values['parent'])) {
+      $wp_values['post_parent'] = $values['parent'];
+    }
+
     if (isset($values['categories'])) {
       $categories = explode(',', $values['categories']);
       foreach ($categories as $category_slug) {
@@ -152,6 +157,7 @@ class JSON_API_Post {
     $this->set_value('status', $wp_post->post_status);
     $this->set_value('title', get_the_title($this->id));
     $this->set_value('title_plain', strip_tags(@$this->title));
+    $this->set_value('parent', (int)$wp_post->post_parent);
     $this->set_content_value();
     $this->set_value('excerpt', apply_filters('the_excerpt', get_the_excerpt()));
     $this->set_value('date', get_the_time($date_format));
