@@ -8,6 +8,7 @@ class JSON_API_Post {
   var $id;              // Integer
   var $type;            // String
   var $slug;            // String
+  var $absolute_slug;   // String
   var $url;             // String
   var $status;          // String ("draft", "published", or "pending")
   var $title;           // String
@@ -32,7 +33,22 @@ class JSON_API_Post {
     }
     do_action("json_api_{$this->type}_constructor", $this);
   }
-  
+
+  public function absolute_slug() {
+    if($this->type != 'page' || $this->parent == 0) {
+      return $this->slug;
+    } else {
+      $parent = get_page($this->parent);
+      $slug = $this->slug;
+      do {
+        $slug = $parent->post_name . '/' . $slug;
+        $parent = get_page($parent->post_password);
+      } while ($parent->post_password != 0);
+      return $slug;
+    }
+    return null;
+  }
+
   function create($values = null) {
     unset($values['id']);
     if (empty($values) || empty($values['title'])) {
@@ -150,6 +166,7 @@ class JSON_API_Post {
     $this->set_thumbnail_value();
     $this->set_custom_fields_value();
     $this->set_custom_taxonomies($wp_post->post_type);
+    $this->set_value('absolute_slug', $this->absolute_slug());
     do_action("json_api_import_wp_post", $this, $wp_post);
   }
   
